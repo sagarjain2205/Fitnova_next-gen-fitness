@@ -145,17 +145,6 @@ The app reads `GROQ_API_KEY` from the environment or Streamlit secrets. Never co
 
 This repository includes `requirements.txt` and `packages.txt`. Confirm system-package compatibility if the build reports a missing Linux package. Deployed camera access requires HTTPS. Free hosting plans may sleep and may not preserve local database files.
 
-### Camera connectivity (TURN)
-
-The app uses Google STUN by default. Some hosted networks, including Streamlit Community Cloud, also require a TURN relay for the browser camera to connect. To enable Cloudflare Realtime TURN, create a TURN key and add both values to the app's Streamlit Secrets:
-
-```toml
-CLOUDFLARE_TURN_KEY_ID = "your_turn_key_id"
-CLOUDFLARE_TURN_KEY_API_TOKEN = "your_turn_api_token"
-```
-
-Keep these values in Streamlit Secrets, never in GitHub. Cloudflare TURN usage may be billed separately; check its current pricing before enabling it.
-
 ## Security and data considerations
 
 - **Prototype login:** the current login is username-only and does not securely verify a person's identity.
