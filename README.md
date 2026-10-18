@@ -1,4 +1,4 @@
-# FitNova - next generation fitness# FitNova — Next Gen Fitness
+# FitNova — Next Gen Fitness
 
 <p align="center"><strong>Your AI-powered workout companion for real-time exercise tracking and coaching.</strong></p>
 
