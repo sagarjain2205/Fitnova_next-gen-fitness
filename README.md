@@ -1,6 +1,6 @@
 # FitNova — Next Gen Fitness
 
-<p align="center"><strong>Your AI-powered workout companion for real-time exercise tracking and coaching.</strong></p>
+<p align="center"><strong>Real-time workout tracking and AI-powered coaching for more confident training.</strong></p>
 
 <p align="center">
   <a href="https://YOUR-LIVE-APP-URL"><img src="https://img.shields.io/badge/Live%20App-URL%20Coming%20Soon-8EDB24?style=for-the-badge&logo=streamlit&logoColor=white" alt="Live App — update URL" /></a>
@@ -16,37 +16,58 @@
   <a href="https://github.com/sagarjain2205/Fitnova_next-gen-fitness"><img src="https://img.shields.io/github/stars/sagarjain2205/Fitnova_next-gen-fitness?style=flat-square&color=yellow" alt="GitHub stars" /></a>
 </p>
 
-FitNova uses webcam video and MediaPipe pose landmarks to track exercise repetitions, sets, and form metrics. Groq-powered coaching provides feedback, and gTTS can turn coaching cues into spoken audio. Workout history and basic analytics are stored with SQLite.
+FitNova is an AI-assisted fitness training companion built with Streamlit, MediaPipe, Groq, and gTTS. It helps people follow a workout, count reps and sets, view basic form metrics, and receive coaching cues while exercising.
 
-> **Status:** Prototype. Read [Security and data notes](#security-and-data-notes) before deploying for public or real-user use.
+## The problem
 
-## Features
+Good exercise guidance is not always available at the moment someone needs it.
 
-- Real-time webcam processing with Streamlit WebRTC.
-- MediaPipe Pose Landmarker body-pose estimation.
-- Exercise-specific repetition counting and form metrics.
-- Set and rep targets for a workout session.
-- Groq AI coaching with optional gTTS voice feedback.
-- Workout history, user summaries, and admin analytics.
+- **Access and follow-up can be difficult.** Physiotherapy and rehabilitation centers may be busy, appointments can require planning or waiting, and people may not have a professional beside them during every practice session.
+- **Gym guidance can be inconsistent.** Beginners may receive rushed, conflicting, or informal advice. Even with a trainer, it can be hard to observe and correct every repetition across a busy floor.
+- **Home workouts often lack feedback.** A video can demonstrate an exercise, but it cannot tell a person whether their movement is being tracked correctly or help them keep count. Poorly monitored technique may lead to ineffective practice or unnecessary strain.
+- **Progress is easy to lose track of.** Without clear rep, set, and session records, it can be difficult to stay consistent and see how training is going.
+
+These challenges do not mean people should avoid professional care. They show why accessible tools can help people follow basic workouts with more structure between sessions.
+
+## Our solution
+
+We built **FitNova** to bring lightweight, real-time workout support into a browser. Using a webcam stream, MediaPipe estimates body pose landmarks. FitNova's exercise detectors track repetitions and workout metrics, while a Groq-powered coaching layer can provide timely feedback and gTTS can speak cues aloud. Workout summaries are saved for later review.
+
+FitNova is designed to make routine exercise practice more guided and trackable—at home or in a gym—without requiring a dedicated sensor or a full video call with a coach.
+
+> **Important:** FitNova is a prototype fitness companion. It does not diagnose conditions, prescribe rehabilitation, or replace a physiotherapist, physician, or qualified trainer. Pose estimates and coaching cues can be imperfect; stop if you feel pain or discomfort and seek professional advice when needed.
+
+## What FitNova can do
+
+- Track webcam video with Streamlit WebRTC.
+- Estimate body pose with MediaPipe Pose Landmarker.
+- Count repetitions and show exercise-specific form metrics.
+- Set workout targets for reps and sets.
+- Generate coaching feedback with Groq and optional spoken cues with gTTS.
+- Save workout history and show basic user and admin analytics.
 
 ## Supported exercises
 
-Squats · Push-ups · Dumbbell biceps curls · Shoulder press · Lunges
+- Squats
+- Push-ups
+- Dumbbell biceps curls
+- Shoulder press
+- Lunges
 
-## How it works
+## How a workout works
 
 1. Enter a username to open or create a local profile.
-2. Select an exercise and set targets.
-3. Allow camera access and start the workout. WebRTC streams frames to the app.
-4. MediaPipe estimates pose landmarks; the exercise detector calculates metrics and rep progress.
+2. Choose an exercise and set a target for sets and reps.
+3. Allow camera access and start the workout. WebRTC sends video frames to the app.
+4. MediaPipe estimates pose landmarks, and the selected exercise detector calculates metrics and repetition progress.
 5. Coaching events can be sent to Groq and voiced with gTTS.
-6. Workout summaries are saved to SQLite and shown in the history and analytics pages.
+6. Workout summaries are written to SQLite and shown in the history and analytics pages.
 
 ## Project structure
 
 ```text
 .
-├── main.py                              # Main Streamlit app
+├── main.py                              # Main Streamlit app and workout flow
 ├── pages/
 │   ├── 1_Admin_Dashboard.py             # Admin dashboard and analytics
 │   └── 2_Workout_History.py             # Workout history and progress
@@ -58,7 +79,7 @@ Squats · Push-ups · Dumbbell biceps curls · Shoulder press · Lunges
 │   ├── config/                          # Exercise configuration
 │   ├── persistence/                     # SQLite repository
 │   ├── state/                           # Streamlit session state
-│   ├── tracking/                        # Workout metrics
+│   ├── tracking/                        # Workout metric synchronization
 │   ├── ui/                              # Styles and fonts
 │   └── vision/                          # Webcam frame and pose processing
 ├── static/                              # CSS and font assets
@@ -68,7 +89,13 @@ Squats · Push-ups · Dumbbell biceps curls · Shoulder press · Lunges
 
 ## Run locally
 
-Use Python 3.11 with a webcam and a modern browser. Clone the repository, create a virtual environment, install dependencies, then run Streamlit:
+### Requirements
+
+- Python 3.11 recommended (MediaPipe wheels vary by Python version).
+- A webcam and a modern browser.
+- A Groq API key for AI coaching.
+
+### Install
 
 ```bash
 git clone https://github.com/sagarjain2205/Fitnova_next-gen-fitness.git
@@ -76,13 +103,13 @@ cd Fitnova_next-gen-fitness
 python -m venv .venv
 ```
 
-Activate the environment:
+Activate the environment in PowerShell:
 
 ```powershell
 .venv\Scripts\Activate.ps1
 ```
 
-On macOS/Linux use `source .venv/bin/activate`. Then install and launch:
+On macOS/Linux, run `source .venv/bin/activate`. Then install dependencies and launch the app:
 
 ```bash
 python -m pip install --upgrade pip
@@ -90,9 +117,9 @@ python -m pip install -r requirements.txt
 streamlit run main.py
 ```
 
-Open the local URL printed by Streamlit. Camera access requires browser permission; deployed apps should use HTTPS.
+Open the local URL printed by Streamlit. Allow camera access when the browser asks.
 
-## Configuration
+## Configure Groq
 
 For local development, create a root-level `.env` file:
 
@@ -106,37 +133,36 @@ For Streamlit Community Cloud, add the key under **App settings → Secrets**:
 GROQ_API_KEY = "your_groq_api_key"
 ```
 
-The app reads `GROQ_API_KEY` from the environment or Streamlit secrets. Never commit a real API key.
+The app reads `GROQ_API_KEY` from the environment or Streamlit secrets. Never commit a real key.
 
 ## Deploy to Streamlit Community Cloud
 
-1. Push this repository to GitHub.
-2. In Streamlit Community Cloud, choose **Create app**.
-3. Select this repository, branch `main`, and entrypoint `main.py`.
-4. Add `GROQ_API_KEY` in **Secrets**.
-5. Deploy and check the app logs if installation or startup fails.
+1. Push the repository to GitHub.
+2. In Streamlit Community Cloud, select **Create app**.
+3. Choose this repository, the `main` branch, and `main.py` as the entrypoint.
+4. Add `GROQ_API_KEY` in the app's **Secrets** settings.
+5. Deploy and check the app logs if dependency installation or startup fails.
 
-The repository includes `requirements.txt` and `packages.txt`. If the build fails on a system package, check that its name is available in the host's Linux environment. Free hosting may sleep and may not preserve local files.
+This repository includes `requirements.txt` and `packages.txt`. Confirm system-package compatibility if the build reports a missing Linux package. Deployed camera access requires HTTPS. Free hosting plans may sleep and may not preserve local database files.
 
-## Security and data notes
+## Security and data considerations
 
-- Login is currently **username-only**; it is not secure account authentication.
-- The admin dashboard has a **default fallback passcode** in the current source. Replace it and add proper authorization before making the dashboard public.
-- SQLite writes to root-level `data.db`. Local database files on free hosts may be lost on restart or redeploy; use durable managed storage for real user history.
-- Do not commit `data.db`. Removing it in a new commit does not remove it from earlier Git history.
-- Treat workout records as private data. If real records were exposed, remove them from Git history and use proper authentication and access controls before public use.
-- AI exercise suggestions are general guidance, not medical advice or a substitute for a qualified trainer.
+- **Prototype login:** the current login is username-only and does not securely verify a person's identity.
+- **Admin access:** the current source includes a default fallback passcode. Replace it with a securely managed secret and proper authorization before exposing the dashboard.
+- **Database durability:** SQLite writes to root-level `data.db`. Many free hosts can lose local files on restart or redeploy. Use durable managed storage for real user history.
+- **Do not commit private data:** keep `data.db`, secrets, and user records out of Git. Removing a database in a later commit does not erase it from earlier Git history.
+- **Privacy and camera use:** explain clearly how workout data and camera frames are processed before inviting real users.
 
 ## Roadmap
 
-- Add secure authentication and user-specific authorization.
+- Add secure authentication and user-specific access controls.
 - Move workout history to durable managed storage.
-- Improve deployment compatibility and document production configuration.
-- Expand exercises, coaching, and analytics.
+- Improve deployment compatibility and production configuration.
+- Expand exercise coverage, coaching, and progress analytics.
 
 ## License
 
-No license file is currently present. All rights are reserved unless the project owner adds a license.
+No license file is currently included. All rights are reserved unless the project owner adds a license.
 
 ---
 
