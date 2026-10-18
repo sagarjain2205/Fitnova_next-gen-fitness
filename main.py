@@ -22,6 +22,24 @@ from services.coaching.tts import TextToSpeech
 from services.coaching.voice_pipeline import VoicePipeline, autoplay_audio
 
 
+def _load_webrtc_turn_credentials() -> bool:
+    """Expose Streamlit Cloud secrets to streamlit-webrtc's TURN auto-config."""
+    secret_names = (
+        "CLOUDFLARE_TURN_KEY_ID",
+        "CLOUDFLARE_TURN_KEY_API_TOKEN",
+    )
+    for name in secret_names:
+        if os.environ.get(name):
+            continue
+        try:
+            value = st.secrets.get(name)
+        except Exception:
+            value = None
+        if value:
+            os.environ[name] = str(value)
+    return all(os.environ.get(name) for name in secret_names)
+
+
 # ── Extra page-level CSS injected via st.markdown ──────────────────────────
 _PAGE_CSS = """
 <style>
@@ -638,13 +656,19 @@ def main():
 
     else:
         # WebRTC camera stream
+        rtc_options = {}
+        if not _load_webrtc_turn_credentials():
+            rtc_options["rtc_configuration"] = {
+                "iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]
+            }
+
         context = webrtc_streamer(
             key="exercise-analysis",
             mode=WebRtcMode.SENDRECV,
             video_processor_factory=VideoProcessorClass,
-            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
             media_stream_constraints={"video": True, "audio": False},
-            async_processing=True
+            async_processing=True,
+            **rtc_options,
         )
 
         sync_metrics_update(context)
