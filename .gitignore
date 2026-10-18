@@ -16,3 +16,8 @@ Main App/data.db
 
 # Logs
 *.log
+# SQLite databases
+/data.db
+*.db
+*.sqlite
+*.sqlite3
