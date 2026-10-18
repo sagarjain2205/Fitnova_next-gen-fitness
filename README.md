@@ -167,3 +167,12 @@ No license file is currently included. All rights are reserved unless the projec
 ---
 
 <p align="center"><strong>Train smart. Move well. Keep progressing.</strong></p>
+
+
+---
+
+© 2026 Sagar Jain. All rights reserved.
+
+Created with ❤️ by Sagar Jain
+
+Email: [jainsagar22105@gmail.com](mailto:jainsagar22105@gmail.com)
