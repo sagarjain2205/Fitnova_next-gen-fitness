@@ -3,7 +3,7 @@
 <p align="center"><strong>Real-time workout tracking and AI-powered coaching for more confident training.</strong></p>
 
 <p align="center">
-  <a href="https://YOUR-LIVE-APP-URL"><img src="https://img.shields.io/badge/Live%20App-URL%20Coming%20Soon-8EDB24?style=for-the-badge&logo=streamlit&logoColor=white" alt="Live App — update URL" /></a>
+  <a href="https://fitnova-sagarjain.streamlit.app/"><img src="https://img.shields.io/badge/Live%20App-Try%20FitNova-8EDB24?style=for-the-badge&logo=streamlit&logoColor=white" alt="Try FitNova live" /></a>
   <a href="https://YOUR-LANDING-PAGE-URL"><img src="https://img.shields.io/badge/Landing%20Page-URL%20Coming%20Soon-111827?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Landing Page — update URL" /></a>
 </p>
 
