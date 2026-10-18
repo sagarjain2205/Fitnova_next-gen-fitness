@@ -20,6 +20,9 @@ class VideoProcessorClass(VideoProcessorBase):
         self._lock = threading.Lock()
         self._latest_metrics = None
         self._exercise_type = "Squats"
+        self._target_reps = None
+        self._workout_complete = False
+        self._workout_session_id = None
 
         model_path = os.path.join(os.getcwd(), "ml_models", "pose_landmarker_full.task")
         base_option = python.BaseOptions(model_asset_path=model_path)
@@ -59,6 +62,27 @@ class VideoProcessorClass(VideoProcessorBase):
                 self._exercise_type = exercise_type
                 for d in self._detectors.values():
                     d.reset()
+                self._latest_metrics = None
+                self._workout_complete = False
+
+    def begin_workout(self, exercise_type, target_reps, session_id):
+        """Reset the selected detector once per session and enforce its rep target."""
+        with self._lock:
+            if session_id == self._workout_session_id:
+                self._target_reps = target_reps
+                return
+
+            if self._exercise_type != exercise_type:
+                self._exercise_type = exercise_type
+                for detector in self._detectors.values():
+                    detector.reset()
+            else:
+                self._detectors[exercise_type].reset()
+
+            self._latest_metrics = None
+            self._target_reps = target_reps
+            self._workout_complete = False
+            self._workout_session_id = session_id
 
     def get_exercise(self):
         with self._lock:
@@ -69,6 +93,7 @@ class VideoProcessorClass(VideoProcessorBase):
             for d in self._detectors.values():
                 d.reset()
             self._latest_metrics = None
+            self._workout_complete = False
         
     def _draw_skeleton(self, img, landmarks):
         h, w = img.shape[:2]
@@ -229,21 +254,33 @@ class VideoProcessorClass(VideoProcessorBase):
 
                 self._draw_skeleton(image, landmarks)
 
-                ex_type = self.get_exercise()
+                with self._lock:
+                    ex_type = self._exercise_type
+                    detector = self._detectors.get(ex_type)
 
-                detector = self._detectors.get(ex_type)
+                    if detector:
+                        if self._workout_complete:
+                            metrics = dict(self._latest_metrics or {})
+                        else:
+                            try:
+                                metrics = detector.process(landmarks)
+                            except Exception:
+                                metrics = dict(self._latest_metrics or {})
+
+                            if self._target_reps is not None:
+                                metrics["reps"] = min(
+                                    max(0, int(metrics.get("reps", 0) or 0)),
+                                    self._target_reps,
+                                )
+                                if metrics["reps"] >= self._target_reps:
+                                    self._workout_complete = True
+
+                            self._latest_metrics = metrics.copy()
+
+                        metrics["pose_detected"] = True
 
                 if detector:
-                    try:
-                        metrics = detector.process(landmarks)
-                    except Exception:
-                        metrics = {}
-
-                    metrics["pose_detected"] = True
-
                     self._draw_overlays(image, metrics, ex_type)
-
-                    self.set_latest_metrics(metrics)
             else:
                 self._draw_no_pose_warnings(image)
                 

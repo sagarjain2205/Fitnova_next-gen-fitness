@@ -13,7 +13,14 @@ def initial_session_defaults():
         "last_notified_workout_complete": False,
         "last_saved_sets_completed": 0,
         "set_cycle_started_at": 0.0,
+        "workout_session_id": None,
         "last_exercise_type": "Squats",
+        "workout_completed": False,
+        "just_completed_workout": False,
+        "completed_summary": {},
+        "audio_to_play": None,
+        "coach_feedback": None,
+        "voice_pipeline_error": None,
 
         # Workout plan (set before starting)
         "workout_started": False,

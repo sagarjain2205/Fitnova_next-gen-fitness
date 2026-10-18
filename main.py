@@ -1,4 +1,5 @@
 import streamlit as st
+import html
 import os
 import time
 from dotenv import load_dotenv
@@ -324,12 +325,18 @@ def main():
             api_key = os.environ.get("GROQ_API_KEY", "")
             if not api_key and hasattr(st, "secrets") and "GROQ_API_KEY" in st.secrets:
                 api_key = st.secrets["GROQ_API_KEY"]
+            if not api_key:
+                raise ValueError("GROQ_API_KEY is not configured")
             groq_client = Groq(api_key=api_key)
             llm_coach = LLMCoach(groq_client)
             tts = TextToSpeech()
             st.session_state.voice_pipeline = VoicePipeline(llm_coach, tts)
+            st.session_state.voice_pipeline_error = None
         except Exception:
             st.session_state.voice_pipeline = None
+            st.session_state.voice_pipeline_error = (
+                "AI coaching is unavailable. Check the GROQ_API_KEY setting; rep tracking can still run."
+            )
 
     workout_started = st.session_state.get("workout_started", False)
 
@@ -392,9 +399,9 @@ def main():
             # Sets & Reps counter display
             col_s, col_r = st.columns(2)
             with col_s:
-                plan_sets = st.number_input("Sets", min_value=0, max_value=50, key="plan_sets", step=1)
+                plan_sets = st.number_input("Sets", min_value=1, max_value=50, key="plan_sets", step=1)
             with col_r:
-                plan_reps = st.number_input("Reps / Set", min_value=0, max_value=50, key="plan_reps", step=1)
+                plan_reps = st.number_input("Reps / Set", min_value=1, max_value=50, key="plan_reps", step=1)
 
             # Live preview
             icon = EXERCISE_ICONS.get(plan_exercise, "🏋️")
@@ -430,16 +437,22 @@ def main():
                 st.session_state.reps = 0
                 st.session_state.workout_started = True
                 st.session_state.workout_start_ts = time.time()
+                st.session_state.workout_session_id = time.time_ns()
                 st.session_state.set_cycle_started_at = time.time()
                 st.session_state.last_saved_sets_completed = 0
                 st.session_state.workout_completed = False
                 st.session_state.just_completed_workout = False
+                st.session_state.completed_summary = {}
+                st.session_state.last_notified_workout_complete = False
+                st.session_state.voice_pipeline_error = None
 
                 if st.session_state.voice_pipeline:
                     result = st.session_state.voice_pipeline.process_event(
                         event="workout_started",
                         exercise=plan_exercise,
-                        metrics={}
+                        metrics={},
+                        event_id=f"{st.session_state.workout_session_id}:started",
+                        context_info={"target_sets": int(plan_sets), "reps_per_set": int(plan_reps)},
                     )
                     if result:
                         st.session_state.audio_to_play, st.session_state.coach_feedback = result
@@ -483,7 +496,12 @@ def main():
                     result = st.session_state.voice_pipeline.process_event(
                         event="workout_completed",
                         exercise=exercise,
-                        metrics={}
+                        metrics={},
+                        event_id=f"{st.session_state.get('workout_session_id')}:ended",
+                        context_info={
+                            "sets": st.session_state.get("sets_completed", 0),
+                            "reps": curr_reps,
+                        },
                     )
                     if result:
                         st.session_state.audio_to_play, st.session_state.coach_feedback = result
@@ -567,13 +585,16 @@ def main():
         st.session_state.audio_to_play = None
 
     coach_slot = st.empty()
+    if st.session_state.get("voice_pipeline_error"):
+        st.caption(st.session_state.voice_pipeline_error)
     if st.session_state.get("coach_feedback"):
+        safe_coach_feedback = html.escape(str(st.session_state.coach_feedback))
         coach_slot.markdown(f"""
         <div class="coach-card">
           <div class="coach-avatar">🤖</div>
           <div class="coach-body">
             <div class="coach-label">FitNova AI Coach</div>
-            <div class="coach-text">{st.session_state.coach_feedback}</div>
+            <div class="coach-text">{safe_coach_feedback}</div>
           </div>
         </div>
         """, unsafe_allow_html=True)

@@ -1,118 +1,166 @@
-import time
 import base64
+import logging
+import time
+
 import streamlit as st
-import streamlit.components.v1 as components
+
+
+logger = logging.getLogger(__name__)
 
 
 class VoicePipeline:
+    FORM_WARNING_VALUES = {
+        "TOO HIGH",
+        "POOR FORM",
+        "SLIGHT BEND",
+        "SAGGING",
+        "PIKED UP",
+        "SWINGING",
+        "ELBOW DRIFTING",
+        "SLIGHT ARCH",
+        "EXCESSIVE ARCH",
+        "OFF BALANCE",
+    }
+    NEUTRAL_VALUES = {"", "N/A", "NA", "NONE", "NEUTRAL", "GOOD DEPTH", "STANDING",
+                      "STRAIGHT", "LEVEL", "BALANCED", "NO SWING", "STABLE",
+                      "FULL EXTENSION", "NEARLY EXTENDED", "PRESSING", "START POSITION"}
+
     def __init__(self, llm, tts):
         self.llm = llm
         self.tts = tts
-        self.last_spoken_at = 0
-        self.last_issue = None           # prevent exact same cue repeating
-        self.last_encouraged_at = 0      # track last good-form nudge
-        self.ISSUE_COOLDOWN = 8          # seconds between form corrections
-        self.ENCOURAGEMENT_COOLDOWN = 10 # seconds between good-form pats
+        self.last_spoken_at = 0.0
+        self.last_attempt_at = 0.0
+        self.last_issue = None
+        self.last_encouraged_at = 0.0
+        self.last_error = None
+        self._completed_event_ids = set()
+        self.ISSUE_COOLDOWN = 8
+        self.ENCOURAGEMENT_COOLDOWN = 10
 
-    def _find_form_issue(self, exercise, metrics):
-        if "issue" in metrics:
-            return metrics["issue"]
-
+    @classmethod
+    def _find_form_issue(cls, exercise, metrics):
+        """Return raw detector signals for Groq; never turn them into canned advice."""
+        metrics = metrics or {}
+        signals = {}
+        for key, value in (metrics or {}).items():
+            if key in {"reps", "pose_detected", "issue"} or value is None:
+                continue
+            if isinstance(value, str):
+                normalized = value.strip().upper()
+                if normalized in cls.NEUTRAL_VALUES:
+                    continue
+                if normalized in cls.FORM_WARNING_VALUES:
+                    signals[key] = value
         if exercise == "Squats":
-            depth = metrics.get("depth_status", "")
-            back_angle = metrics.get("back_angle", 180)
-
-            if depth == "TOO HIGH":
-                return "Squat depth too shallow — drive your hips back and sink the knees deeper."
-
+            back_angle = metrics.get("back_angle")
             if isinstance(back_angle, (int, float)) and back_angle < 130:
-                return "Torso is collapsing forward — chest up, proud posture, weight through your heels."
+                signals["back_angle"] = {"value": int(back_angle), "below_form_threshold": True}
+        return signals or None
 
-        elif exercise == "Push-ups":
-            alignment = metrics.get("body_alignment", "")
-            hip_status = metrics.get("hip_status", "")
+    def process_event(self, event, exercise, metrics, context_info=None, event_id=None):
+        metrics = metrics or {}
+        now = time.monotonic()
+        is_milestone = event in {"workout_started", "set_completed", "workout_completed"}
+        signals = self._find_form_issue(exercise, metrics)
 
-            if alignment == "Poor Form":
-                return "Body is misaligned — brace your core hard and keep a rigid plank from head to heel."
+        if event_id and event_id in self._completed_event_ids:
+            return None
 
-            if hip_status == "SAGGING":
-                return "Hips are dropping — squeeze your glutes and brace your abs to hold the plank position."
-
-            if hip_status == "PIKED UP":
-                return "Hips are too high — lower your hips until your body forms a straight line."
-
-        elif exercise == "Biceps Curls (Dumbbell)":
-            swing = metrics.get("swing_status", "")
-            shoulder = metrics.get("shoulder_status", "")
-
-            if swing == "SWINGING":
-                return "Torso is swinging — pin your elbows to your sides and isolate the bicep, no body English."
-
-            if shoulder == "ELBOW DRIFTING":
-                return "Elbow is drifting out — glue your upper arm to your torso and curl with control."
-
-        elif exercise == "Shoulder Press":
-            back_arch = metrics.get("back_arch_status", "")
-            extension = metrics.get("extension_status", "")
-
-            if back_arch == "Excessive Arch":
-                return "Excessive lower-back arch — tighten your core, tuck your ribs, press straight up."
-
-            if back_arch == "Slight Arch":
-                return "Slight back arch — brace your core before the next press to protect your spine."
-
-        elif exercise == "Lunges":
-            balance = metrics.get("balance_status", "")
-
-            if balance == "OFF BALANCE":
-                return "Balance is off — step wider, engage your core, and keep your torso upright."
-
-        return None
-
-    def process_event(self, event, exercise, metrics, context_info=None):
-        issue = self._find_form_issue(exercise, metrics)
-        now = time.time()
-
-        is_milestone = event in ["workout_started", "set_completed", "workout_completed"]
-
+        issue_key = "pose_not_detected" if event == "no_pose_detected" else signals
         if not is_milestone:
-            if issue:
-                # Cooldown between corrections
-                if now - self.last_spoken_at < self.ISSUE_COOLDOWN:
-                    return None
-                # Skip if exact same issue just spoken (avoids broken-record effect)
-                if issue == self.last_issue and now - self.last_spoken_at < self.ISSUE_COOLDOWN * 2:
+            if now - self.last_attempt_at < self.ISSUE_COOLDOWN:
+                return None
+            if issue_key:
+                if issue_key == self.last_issue and now - self.last_spoken_at < self.ISSUE_COOLDOWN * 2:
                     return None
             else:
-                # No form issue — give periodic good-form encouragement
                 if now - self.last_encouraged_at < self.ENCOURAGEMENT_COOLDOWN:
                     return None
                 if now - self.last_spoken_at < self.ENCOURAGEMENT_COOLDOWN:
                     return None
-                # Use a special event so LLM knows to encourage, not correct
                 event = "good_form_encouragement"
-                self.last_encouraged_at = now
 
-        self.last_issue = issue
-        text = self.llm.give_feedback(event, issue, context_info=context_info)
-        voice = self.tts.speak(text)
-        self.last_spoken_at = now
+        self.last_attempt_at = now
+        coach_context = {
+            "exercise": exercise,
+            "metrics": {
+                key: value for key, value in metrics.items()
+                if key not in {"pose_detected", "issue"}
+                and value is not None
+                and value != "N/A"
+            },
+            "detected_form_signals": signals or {},
+            "additional_context": context_info or {},
+        }
+        if event == "no_pose_detected":
+            coach_context["pose_detected"] = False
+
+        try:
+            text = self.llm.give_feedback(event, None, context_info=coach_context)
+            text = " ".join((text or "").replace("\x00", "").split()).strip(" \t\n\r\"'`")
+            if not text:
+                raise ValueError("Groq returned an empty coaching response")
+            if text[-1] not in ".!?":
+                text += "."
+        except Exception as exc:
+            self.last_error = f"Groq coaching request failed: {exc}"
+            logger.exception("FitNova Groq coaching request failed")
+            if event_id:
+                self._remember_event(event_id)
+            return None
+
+        voice = None
+        try:
+            voice = self.tts.speak(text)
+        except Exception:
+            logger.exception("FitNova text-to-speech generation failed")
+
+        self.last_error = None if voice else "Text-to-speech did not return audio"
+        self.last_issue = issue_key
+        self.last_spoken_at = time.monotonic()
+        if event == "good_form_encouragement":
+            self.last_encouraged_at = self.last_spoken_at
+        if event_id:
+            self._remember_event(event_id)
 
         return voice, text
 
+    def _remember_event(self, event_id):
+        self._completed_event_ids.add(event_id)
+        if len(self._completed_event_ids) > 100:
+            self._completed_event_ids.pop()
+
 
 def autoplay_audio(audio_bytes):
-    """Play audio via JavaScript Audio object — invisible, not cut off by Streamlit reruns."""
+    """Queue speech in the app page so camera reruns cannot destroy its player."""
     if not audio_bytes:
         return
 
-    b64 = base64.b64encode(audio_bytes).decode("utf-8")
-    js_code = f"""
-    <script>
-    (function() {{
-        var snd = new Audio("data:audio/mp3;base64,{b64}");
-        snd.play().catch(function(e) {{ console.warn('Audio play failed:', e); }});
-    }})();
-    </script>
-    """
-    components.html(js_code, height=0, width=0)
+    b64 = base64.b64encode(audio_bytes).decode("ascii")
+    st.html(
+        f"""
+        <script>
+        (() => {{
+          const queue = window.__fitnovaAudioQueue || (window.__fitnovaAudioQueue = []);
+          const playNext = window.__fitnovaPlayNext || (window.__fitnovaPlayNext = () => {{
+            if (window.__fitnovaAudioCurrent || queue.length === 0) return;
+            const audio = new Audio(queue.shift());
+            window.__fitnovaAudioCurrent = audio;
+            const finish = () => {{
+              if (window.__fitnovaAudioCurrent === audio) window.__fitnovaAudioCurrent = null;
+              window.__fitnovaPlayNext();
+            }};
+            audio.addEventListener("ended", finish, {{once: true}});
+            audio.addEventListener("error", finish, {{once: true}});
+            audio.play().catch((error) => {{
+              console.warn("FitNova voice playback was blocked by the browser:", error);
+              finish();
+            }});
+          }});
+          queue.push("data:audio/mpeg;base64,{b64}");
+          playNext();
+        }})();
+        </script>
+        """,
+        unsafe_allow_javascript=True,
+    )

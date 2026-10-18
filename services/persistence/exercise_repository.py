@@ -1,8 +1,12 @@
 import sqlite3
 import streamlit as st
+import os
 from pathlib import Path
 
-_DB_PATH = str(Path(__file__).parent.parent.parent / "data.db")
+_DB_PATH = os.environ.get(
+    "FITNOVA_DB_PATH",
+    str(Path(__file__).parent.parent.parent / "data.db"),
+)
 
 
 @st.cache_resource

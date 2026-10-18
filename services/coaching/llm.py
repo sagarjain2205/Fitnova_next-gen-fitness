@@ -1,52 +1,64 @@
+import json
+import os
+import re
+
 from services.config.workout_config import PROMPT
 
 
 class LLMCoach:
     def __init__(self, groq_client):
         self.client = groq_client
-        self.history = []
         self.system_prompt = PROMPT
         self.model = self._resolve_model()
 
     def _resolve_model(self) -> str:
+        configured = os.environ.get("GROQ_MODEL", "").strip()
         preferred = [
+            configured,
             "qwen/qwen3.8-27b",
             "openai/gpt-oss-20b",
+            "openai/gpt-oss-120b",
             "llama-3.3-70b-versatile",
-            "llama-3.1-8b-instant"
         ]
+        preferred = [model for model in preferred if model]
+
         try:
-            available = [m.id for m in self.client.models.list().data]
-            for m in preferred:
-                if m in available:
-                    return m
-            return available[0] if available else "qwen/qwen3.8-27b"
+            available = {model.id for model in self.client.models.list().data}
+            for model in preferred:
+                if model in available:
+                    return model
         except Exception:
-            return "qwen/qwen3.8-27b"
+            # Keep coaching startup independent of model-list API availability.
+            pass
 
-    def give_feedback(self, event, issue, context_info=None):
-        prompt = f"Event: {event}"
+        return configured or "qwen/qwen3.8-27b"
 
-        if context_info:
-            prompt += f" Context: {context_info}"
-
+    def give_feedback(self, event, issue=None, context_info=None):
+        request = {
+            "event": event,
+            "exercise": (context_info or {}).get("exercise"),
+            "detected_form_signals": (context_info or {}).get("detected_form_signals", {}),
+            "current_metrics": (context_info or {}).get("metrics", {}),
+            "additional_context": (context_info or {}).get("additional_context", {}),
+        }
         if issue:
-            prompt += f" Form Issue: {issue}"
-
-        messages = [
-            {"role": "system", "content": self.system_prompt},
-            *self.history[-10:],
-            {"role": "user", "content": prompt}
-        ]
+            request["issue"] = issue
+        if (context_info or {}).get("pose_detected") is False:
+            request["pose_detected"] = False
 
         response = self.client.chat.completions.create(
             model=self.model,
-            messages=messages,
-            temperature=0.4,
+            messages=[
+                {"role": "system", "content": self.system_prompt},
+                {"role": "user", "content": json.dumps(request, ensure_ascii=False)},
+            ],
+            temperature=0.55,
+            max_tokens=80,
         )
 
-        text = response.choices[0].message.content.strip()
-        self.history.append({"role": "assistant", "content": text})
-
+        text = response.choices[0].message.content or ""
+        text = re.sub(r"<[^>]*>", " ", text)
+        text = re.sub(r"\s+", " ", text).strip().strip("\"'` ")
+        if not text:
+            raise ValueError("Groq returned an empty coaching response")
         return text
-    
