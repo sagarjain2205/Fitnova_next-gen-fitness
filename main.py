@@ -678,6 +678,7 @@ def main():
             rtc_configuration=_rtc_configuration(),
             media_stream_constraints={
                 "video": {
+                    "facingMode": {"ideal": "user"},
                     "width": {"ideal": 1280},
                     "height": {"ideal": 720},
                 },
