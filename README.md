@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://fitnova-sagarjain.streamlit.app/"><img src="https://img.shields.io/badge/Live%20App-Try%20FitNova-8EDB24?style=for-the-badge&logo=streamlit&logoColor=white" alt="Try FitNova live" /></a>
-  <a href="https://fitnova-landingpage.vercel.app/"><img src="https://img.shields.io/badge/Landing%20Page-URL%20Coming%20Soon-111827?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Landing Page — visit landing page " /></a>
+  <a href="https://fitnova-landingpage.vercel.app/"><img src="https://img.shields.io/badge/Landing%20Page-visit landing page?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Landing Page — visit landing page " /></a>
 </p>
 
 <p align="center">
