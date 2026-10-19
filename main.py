@@ -291,6 +291,39 @@ def _metric_pill(label, value):
 
 
 
+def _setting(name):
+    """Read a deployment secret first, then fall back to the local .env file."""
+    try:
+        value = st.secrets.get(name)
+        if value:
+            return value
+    except Exception:
+        # Streamlit secrets are optional during local development.
+        pass
+    return os.getenv(name)
+
+
+def _rtc_configuration():
+    ice_servers = [{"urls": ["stun:stun.l.google.com:19302"]}]
+    turn_urls = _setting("FITNOVA_TURN_URLS")
+    turn_username = _setting("FITNOVA_TURN_USERNAME")
+    turn_credential = _setting("FITNOVA_TURN_CREDENTIAL")
+
+    if isinstance(turn_urls, str):
+        turn_urls = [url.strip() for url in turn_urls.split(",") if url.strip()]
+    elif turn_urls:
+        turn_urls = list(turn_urls)
+
+    if turn_urls and turn_username and turn_credential:
+        ice_servers.append({
+            "urls": turn_urls,
+            "username": turn_username,
+            "credential": turn_credential,
+        })
+
+    return {"iceServers": ice_servers}
+
+
 def main():
     st.set_page_config(
         page_icon="🏋️‍♀️",
@@ -642,12 +675,11 @@ def main():
             key="exercise-analysis",
             mode=WebRtcMode.SENDRECV,
             video_processor_factory=VideoProcessorClass,
-            rtc_configuration={"iceServers": [{"urls": ["stun:stun.l.google.com:19302"]}]},
+            rtc_configuration=_rtc_configuration(),
             media_stream_constraints={
                 "video": {
-                    "width": {"ideal": 640, "max": 640},
-                    "height": {"ideal": 480, "max": 480},
-                    "frameRate": {"ideal": 15, "max": 15},
+                    "width": {"ideal": 1280},
+                    "height": {"ideal": 720},
                 },
                 "audio": False,
             },

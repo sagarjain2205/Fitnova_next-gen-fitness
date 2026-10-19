@@ -145,6 +145,28 @@ The app reads `GROQ_API_KEY` from the environment or Streamlit secrets. Never co
 
 This repository includes `requirements.txt` and `packages.txt`. Confirm system-package compatibility if the build reports a missing Linux package. Deployed camera access requires HTTPS. Free hosting plans may sleep and may not preserve local database files.
 
+### Optional TURN relay for camera networks
+
+FitNova uses Google's public STUN server by default. If a device can access its camera but cannot establish the WebRTC stream on a restrictive network, configure a TURN relay. TURN can help the connection succeed, but relayed video may have more latency than a direct connection. Create TURN credentials with a provider such as [Metered Open Relay](https://www.metered.ca/tools/openrelay/) and use the exact TURN URLs, username, and credential provided for your account.
+
+For local development, add these keys to `.env` (use comma-separated URLs):
+
+```dotenv
+FITNOVA_TURN_URLS=turn:your-turn-host:80,turns:your-turn-host:443?transport=tcp
+FITNOVA_TURN_USERNAME=your_turn_username
+FITNOVA_TURN_CREDENTIAL=your_turn_credential
+```
+
+For Streamlit Community Cloud, add the provider's actual values under **App settings → Secrets**:
+
+```toml
+FITNOVA_TURN_URLS = ["turn:your-turn-host:80", "turns:your-turn-host:443?transport=tcp"]
+FITNOVA_TURN_USERNAME = "your_turn_username"
+FITNOVA_TURN_CREDENTIAL = "your_turn_credential"
+```
+
+Do not commit TURN credentials. If the three TURN settings are absent, FitNova continues to use STUN only.
+
 ## Security and data considerations
 
 - **Prototype login:** the current login is username-only and does not securely verify a person's identity.

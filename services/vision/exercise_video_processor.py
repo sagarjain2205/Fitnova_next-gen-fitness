@@ -236,14 +236,27 @@ class VideoProcessorClass(VideoProcessorBase):
 
     def recv(self, frame):
         try:
-            image = np.asarray(
-                cv2.flip(frame.to_ndarray(format="bgr24"), 1),
-                dtype=np.uint8
-            )
+            # Keep the camera's natural orientation. The previous horizontal
+            # flip made both front and rear camera feeds appear mirrored.
+            image = np.asarray(frame.to_ndarray(format="bgr24"), dtype=np.uint8)
+
+            # Preserve the original frame for display, but cap the inference
+            # input's longest edge so a higher-quality camera stream does not
+            # make CPU pose inference proportionally more expensive.
+            inference_image = image
+            height, width = image.shape[:2]
+            longest_edge = max(height, width)
+            if longest_edge > 640:
+                scale = 640 / longest_edge
+                inference_image = cv2.resize(
+                    image,
+                    (max(1, int(width * scale)), max(1, int(height * scale))),
+                    interpolation=cv2.INTER_AREA,
+                )
 
             mp_image = mp.Image(
                 image_format=mp.ImageFormat.SRGB,
-                data=cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+                data=cv2.cvtColor(inference_image, cv2.COLOR_BGR2RGB)
             )
 
             self._frame_timestamps_ms += 30
