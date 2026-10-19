@@ -1,4 +1,5 @@
 import os
+from types import SimpleNamespace
 import cv2
 import av
 import numpy as np
@@ -115,7 +116,7 @@ class VideoProcessorClass(VideoProcessorBase):
                     )
             except Exception:
                 continue
-        
+
         for lm in landmarks:
             try:
                 v = getattr(lm, 'visibility', 0.0) or 0.0
@@ -129,6 +130,18 @@ class VideoProcessorClass(VideoProcessorBase):
                     )
             except Exception:
                 continue
+
+    @staticmethod
+    def _mirror_landmarks_for_preview(landmarks):
+        """Mirror landmark x-coordinates for a selfie-style preview only."""
+        return [
+            SimpleNamespace(
+                x=1.0 - landmark.x,
+                y=landmark.y,
+                visibility=getattr(landmark, "visibility", 0.0),
+            )
+            for landmark in landmarks
+        ]
             
     def _draw_no_pose_warnings(self, img):
         cv2.putText(
@@ -236,8 +249,8 @@ class VideoProcessorClass(VideoProcessorBase):
 
     def recv(self, frame):
         try:
-            # Keep the camera's natural orientation. The previous horizontal
-            # flip made both front and rear camera feeds appear mirrored.
+            # Keep the source frame unmirrored for pose detection and rep
+            # classification. Mirror only the rendered selfie preview below.
             image = np.asarray(frame.to_ndarray(format="bgr24"), dtype=np.uint8)
 
             # Preserve the original frame for display, but cap the inference
@@ -262,10 +275,18 @@ class VideoProcessorClass(VideoProcessorBase):
             self._frame_timestamps_ms += 30
             result = self._landmarker.detect_for_video(mp_image, self._frame_timestamps_ms)
 
+            # A selfie preview should move the same way as the user. Mirroring
+            # the display copy keeps that familiar view without changing the
+            # landmarks used by the exercise detectors.
+            preview = cv2.flip(image, 1)
+
             if result.pose_landmarks:
                 landmarks = result.pose_landmarks[0]
 
-                self._draw_skeleton(image, landmarks)
+                self._draw_skeleton(
+                    preview,
+                    self._mirror_landmarks_for_preview(landmarks),
+                )
 
                 with self._lock:
                     ex_type = self._exercise_type
@@ -293,9 +314,9 @@ class VideoProcessorClass(VideoProcessorBase):
                         metrics["pose_detected"] = True
 
                 if detector:
-                    self._draw_overlays(image, metrics, ex_type)
+                    self._draw_overlays(preview, metrics, ex_type)
             else:
-                self._draw_no_pose_warnings(image)
+                self._draw_no_pose_warnings(preview)
                 
                 with self._lock:
                     if self._latest_metrics is not None:
@@ -303,7 +324,7 @@ class VideoProcessorClass(VideoProcessorBase):
                     else:
                         self._latest_metrics = {"pose_detected": False}
 
-            return av.VideoFrame.from_ndarray(image, format="bgr24")
+            return av.VideoFrame.from_ndarray(preview, format="bgr24")
         except Exception as e:
             try:
                 raw = frame.to_ndarray(format="bgr24")
